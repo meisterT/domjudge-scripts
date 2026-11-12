@@ -3,3 +3,6 @@ cpucore:
 # Add additional CPU cores to pin judgedaemons on as:
 # - 3
 # - 4
+
+# Location of the pypy3 installation on ICPC images, copied into the chroot
+PYPY3_DIR: /opt/pypy3.11-v7.3.18-linux64/
