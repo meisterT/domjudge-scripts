@@ -78,6 +78,24 @@
     mode: '0644'
   when: apt_trusted_gpg.stat.exists
 
+# The contestant image enables ufw allowing only SSH and 9100, which blocks
+# HTTPS/DB/etc. between domserver and judgehosts.
+- name: Check for ufw
+  stat:
+    path: /usr/sbin/ufw
+  register: ufw_binary
+
+- name: Check ufw status
+  command: ufw status
+  register: ufw_status
+  changed_when: false
+  check_mode: no
+  when: ufw_binary.stat.exists
+
+- name: Disable ufw
+  command: ufw --force disable
+  when: "ufw_binary.stat.exists and 'Status: active' in ufw_status.stdout"
+
 - name: Check if nginx is installed
   stat:
     path: /usr/sbin/nginx
