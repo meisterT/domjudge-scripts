@@ -38,7 +38,22 @@ trap 'rm -rf "$work"' EXIT
 echo "Copying image (sparse)..."
 cp --sparse=always "$img" "$work/disk.img"
 
-echo "Installing the test key as /root/.ssh/authorized_keys of the copy..."
+echo "Installing the test key and eth0 DHCP profile in the copy..."
+cat > "$work/vagrant-eth0.nmconnection" <<'NM'
+[connection]
+id=vagrant-eth0
+uuid=4f5d2a1b-8c3e-4a7b-9d1e-2f6a8b0c4e12
+type=ethernet
+interface-name=eth0
+autoconnect=true
+autoconnect-priority=200
+
+[ipv4]
+method=auto
+
+[ipv6]
+method=auto
+NM
 cat > "$work/cmds" <<CMDS
 mkdir /root/.ssh
 sif /root/.ssh mode 040700
@@ -49,12 +64,22 @@ write "$(realpath "$key")" /root/.ssh/authorized_keys
 sif /root/.ssh/authorized_keys mode 0100600
 sif /root/.ssh/authorized_keys uid 0
 sif /root/.ssh/authorized_keys gid 0
+mkdir /etc/NetworkManager
+mkdir /etc/NetworkManager/system-connections
+rm /etc/NetworkManager/system-connections/vagrant-eth0.nmconnection
+write "$work/vagrant-eth0.nmconnection" /etc/NetworkManager/system-connections/vagrant-eth0.nmconnection
+sif /etc/NetworkManager/system-connections/vagrant-eth0.nmconnection mode 0100600
+sif /etc/NetworkManager/system-connections/vagrant-eth0.nmconnection uid 0
+sif /etc/NetworkManager/system-connections/vagrant-eth0.nmconnection gid 0
 CMDS
 # debugfs carries on after errors (e.g. mkdir of an existing directory), so
 # check the result instead.
 debugfs -w -f "$work/cmds" "$work/disk.img?offset=$offset" >/dev/null 2>&1
 if ! debugfs -R "cat /root/.ssh/authorized_keys" "$work/disk.img?offset=$offset" 2>/dev/null | cmp -s - "$key"; then
     echo "Key was not written correctly" >&2; exit 1
+fi
+if ! debugfs -R "cat /etc/NetworkManager/system-connections/vagrant-eth0.nmconnection" "$work/disk.img?offset=$offset" 2>/dev/null | cmp -s - "$work/vagrant-eth0.nmconnection"; then
+    echo "NetworkManager eth0 profile was not written correctly" >&2; exit 1
 fi
 
 echo "Converting to qcow2 and growing by ${extra}G..."
