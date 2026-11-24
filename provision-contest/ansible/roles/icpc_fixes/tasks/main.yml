@@ -58,6 +58,26 @@
     - /home/icpcadmin/.pam_environment
   when: squid_service.stat.exists
 
+# dj_make_chroot -H copies /etc/apt/{sources.list.d,keyrings,trusted.gpg.d} but
+# not /usr/share/keyrings/microsoft.gpg or the legacy /etc/apt/trusted.gpg.
+- name: Remove VS Code apt source
+  file:
+    path: /etc/apt/sources.list.d/vscode.sources
+    state: absent
+
+- name: Check for legacy /etc/apt/trusted.gpg
+  stat:
+    path: /etc/apt/trusted.gpg
+  register: apt_trusted_gpg
+
+- name: Copy legacy /etc/apt/trusted.gpg into trusted.gpg.d
+  copy:
+    src: /etc/apt/trusted.gpg
+    dest: /etc/apt/trusted.gpg.d/icpc-trusted.gpg
+    remote_src: true
+    mode: '0644'
+  when: apt_trusted_gpg.stat.exists
+
 - name: Check if nginx is installed
   stat:
     path: /usr/sbin/nginx
