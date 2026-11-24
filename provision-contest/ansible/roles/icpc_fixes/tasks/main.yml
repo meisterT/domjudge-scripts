@@ -96,6 +96,14 @@
   command: ufw --force disable
   when: "ufw_binary.stat.exists and 'Status: active' in ufw_status.stdout"
 
+# The contestant image enables a local reverseproxy site on port 443 with a
+# CN=icpc cert, which shadows DOMjudge's nginx config.
+- name: Remove contestant nginx reverseproxy site
+  file:
+    path: /etc/nginx/sites-enabled/reverseproxy
+    state: absent
+  notify: Reload nginx if active
+
 - name: Check if nginx is installed
   stat:
     path: /usr/sbin/nginx

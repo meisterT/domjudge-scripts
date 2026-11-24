@@ -3,3 +3,6 @@
   systemd:
     name: systemd-timesyncd
     state: restarted
+
+- name: Reload nginx if active
+  shell: systemctl is-active --quiet nginx && systemctl reload nginx || true
