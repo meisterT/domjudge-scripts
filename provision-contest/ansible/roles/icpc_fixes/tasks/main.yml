@@ -26,6 +26,38 @@
     enabled: false
   when: vscgallery_service.stat.exists
 
+# The contestant image runs a filtering Squid proxy on localhost:3128 and points
+# /etc/environment at it, which blocks git/composer/etc. under become_user.
+- name: Check for contestant Squid service
+  stat:
+    path: /lib/systemd/system/squid.service
+  register: squid_service
+
+- name: Disable contestant Squid service
+  systemd:
+    name: squid
+    state: stopped
+    enabled: false
+  when: squid_service.stat.exists
+
+- name: Remove contestant Squid proxy from /etc/environment
+  lineinfile:
+    dest: /etc/environment
+    regexp: '(?i)^((http|https|ftp)_proxy="http://localhost:3128/"|no_proxy="localhost,127\.0\.0\.1")$'
+    state: absent
+  when: squid_service.stat.exists
+
+# The image sets OVERRIDE="" in .pam_environment to bypass Squid for root/icpcadmin;
+# once /etc/environment no longer defines those vars, pam_env aborts login on them.
+- name: Remove contestant proxy overrides from .pam_environment
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /root/.pam_environment
+    - /home/icpcadmin/.pam_environment
+  when: squid_service.stat.exists
+
 - name: Check if nginx is installed
   stat:
     path: /usr/sbin/nginx
