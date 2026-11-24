@@ -47,12 +47,18 @@
         src: chroot-list
         dest: /tmp/dj_ansible/
 
+- name: Check for ICPC pc2packages keyring
+  stat:
+    path: /etc/apt/trusted.gpg.d/pc2packages.asc
+  register: pc2packages_asc
+  when: ICPC_IMAGE
+
 - name: Convert ASC key to GPG format for debootstrap
   shell: gpg --dearmor < /etc/apt/trusted.gpg.d/pc2packages.asc > /tmp/pc2packages.gpg
   args:
     creates: /tmp/pc2packages.gpg
   # Only needed to build the chroot, see above.
-  when: ICPC_IMAGE and not chroot_dir.stat.exists
+  when: ICPC_IMAGE and pc2packages_asc.stat.exists and not chroot_dir.stat.exists
 
 - name: Create chroot
   shell: "set -o pipefail &&
@@ -62,14 +68,14 @@
             -s \"$(ls /tmp/dj_ansible/chroot-list/*.list 2>/dev/null | tr '\n' ',')\"
             2>&1 | tee /tmp/dj_make_chroot.log;
           grep '^Done building chroot in' /tmp/dj_make_chroot.log"
-  # Only set these on the ICPC image: an empty value would be passed on as
+  # Only set these on the ICPC image with pc2packages: an empty value would be passed on as
   # the string "None" and override the defaults of dj_make_chroot.
   environment: "{{ chroot_environment }}"
   vars:
     chroot_environment: >-
       {{ {'DEBMIRROR': ('https://packages/ubuntu/resolute' if WF_RESTRICTED_NETWORK
                         else 'https://sysopspackages.icpc.global/ubuntu/resolute'),
-          'KEYRING': '/tmp/pc2packages.gpg'} if ICPC_IMAGE else {} }}
+          'KEYRING': '/tmp/pc2packages.gpg'} if (ICPC_IMAGE and pc2packages_asc.stat.exists) else {} }}
   args:
     executable: /bin/bash
     creates: "/chroot/domjudge"
